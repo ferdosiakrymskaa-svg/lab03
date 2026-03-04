@@ -3,10 +3,10 @@
 ### 1. Настройка переменных окружения
 
 ```bash
-export GITHUB_USERNAME=ferdosiakrymskaa-svg
-export GITHUB_EMAIL=ваш_email@example.com
-export GITHUB_TOKEN=ghp_xxxxxxxxxxxxxxxxxxxx
-alias edit=nano
+$ export GITHUB_USERNAME=<имя_пользователя>
+$ export GITHUB_EMAIL=<адрес_почтового_ящика>
+$ export GITHUB_TOKEN=<сгенирированный_токен>
+$ alias edit=<nano|vi|vim|subl>
 ```
 
 **Что делают эти команды:**
