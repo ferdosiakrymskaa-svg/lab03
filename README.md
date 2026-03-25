@@ -1,681 +1,391 @@
 
+```markdown
+# Лабораторная работа №3: Введение в CMake
 
-# Laboratory work II
+## Цель работы
+Познакомиться с системой автоматизации сборки CMake, научиться создавать статические библиотеки и приложения, освоить основные команды CMake.
 
+## Выполнение работы
 
-### 1. Настройка переменных окружения
-
-```bash
-$ export GITHUB_USERNAME=<имя_пользователя>
-$ export GITHUB_EMAIL=<адрес_почтового_ящика>
-$ export GITHUB_TOKEN=<сгенирированный_токен>
-$ alias edit=<nano|vi|vim|subl>
-```
-
-**Что делают эти команды:**
-- `export` - устанавливает переменные окружения для текущей сессии терминала
-- `GITHUB_USERNAME` - хранит имя пользователя GitHub
-- `GITHUB_EMAIL` - хранит email, связанный с аккаунтом GitHub
-- `GITHUB_TOKEN` - хранит токен доступа к GitHub API
-- `alias edit=nano` - создает псевдоним `edit` для текстового редактора nano
-
----
-
-### 2. Переход в рабочую директорию
+### 1. Подготовка окружения
 
 ```bash
-cd ${GITHUB_USERNAME}/workspace
+export GITHUB_USERNAME=ferdosiakrymskaa-svg
+cd /home/ilyasov_ilya/ferdosiakrymskaa-svg/workspace
+pushd .
 source scripts/activate
 ```
 
-**Что делают эти команды:**
-- `cd` - переходит в директорию workspace
-- `source scripts/activate` - активирует окружение (выполняет скрипт настройки)
+Здесь я создал переменную с именем пользователя GitHub, перешел в рабочую директорию, сохранил текущий путь в стек и активировал скрипт окружения.
 
----
-
-### 3. Настройка конфигурации для hub
+### 2. Клонирование репозитория
 
 ```bash
-mkdir ~/.config
-cat > ~/.config/hub <<EOF
-github.com:
-- user: ${GITHUB_USERNAME}
-  oauth_token: ${GITHUB_TOKEN}
-  protocol: https
+git clone https://github.com/ferdosiakrymskaa-svg/lab02.git projects/lab03
+cd projects/lab03
+git remote remove origin
+git remote add origin https://github.com/ferdosiakrymskaa-svg/lab03.git
+```
+
+Склонировал предыдущую лабораторную работу в новую папку lab03, удалил старую привязку к удаленному репозиторию и добавил новый.
+
+### 3. Ручная сборка статической библиотеки
+
+```bash
+g++ -std=c++11 -I./include -c sources/print.cpp
+```
+
+Скомпилировал исходный файл print.cpp в объектный файл. Ключ -std=c++11 задает стандарт языка, -I./include указывает путь к заголовочным файлам, -c означает только компиляцию без линковки.
+
+```bash
+ls print.o
+```
+
+Убедился, что объектный файл создался.
+
+```bash
+nm print.o | grep print
+```
+
+Посмотрел, какие символы (функции) есть в объектном файле. Увидел имена функций print.
+
+```bash
+ar rvs print.a print.o
+```
+
+Создал статическую библиотеку print.a из объектного файла print.o. Ключ r - добавить файл, v - подробный вывод, s - создать индекс.
+
+```bash
+file print.a
+```
+
+Проверил, что файл действительно является архивом.
+
+### 4. Сборка и запуск примеров
+
+```bash
+g++ -std=c++11 -I./include -c examples/example1.cpp
+g++ example1.o print.a -o example1
+./example1 && echo
+```
+
+Скомпилировал первый пример, слинковал его со статической библиотекой и запустил. Программа вывела "hello".
+
+```bash
+g++ -std=c++11 -I./include -c examples/example2.cpp
+nm example2.o
+g++ example2.o print.a -o example2
+./example2
+cat log.txt && echo
+```
+
+Аналогично собрал второй пример, запустил его и проверил содержимое файла log.txt. Там тоже оказалось "hello".
+
+### 5. Очистка
+
+```bash
+rm -rf example1.o example2.o print.o print.a example1 example2 log.txt
+```
+
+Удалил все временные файлы, созданные при ручной сборке.
+
+### 6. Создание CMakeLists.txt
+
+```bash
+cat > CMakeLists.txt <<EOF
+cmake_minimum_required(VERSION 3.4)
+project(print)
 EOF
-git config --global hub.protocol https
-```
 
-**Что делают эти команды:**
-- `mkdir ~/.config` - создает директорию для конфигурационных файлов (если не существует)
-- `cat > ~/.config/hub <<EOF` - создает файл с конфигурацией hub, подставляя значения переменных
-- `github.com: - user:` - указывает username для GitHub
-- `oauth_token:` - сохраняет токен для аутентификации
-- `protocol: https` - устанавливает протокол HTTPS
-- `git config --global hub.protocol https` - добавляет настройку протокола в глобальный конфиг Git
+cat >> CMakeLists.txt <<EOF
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+EOF
 
----
+cat >> CMakeLists.txt <<EOF
+add_library(print STATIC \${CMAKE_CURRENT_SOURCE_DIR}/sources/print.cpp)
+EOF
 
-### 4. Создание и настройка локального репозитория
-
-```bash
-mkdir projects/lab02 && cd projects/lab02
-git init
-git config --global user.name ${GITHUB_USERNAME}
-git config --global user.email ${GITHUB_EMAIL}
-git config -e --global
-```
-
-**Что делают эти команды:**
-- `mkdir projects/lab02` - создает директорию для проекта
-- `cd projects/lab02` - переходит в созданную директорию
-- `git init` - инициализирует пустой Git репозиторий (создает папку .git)
-- `git config --global user.name` - устанавливает имя пользователя для всех коммитов
-- `git config --global user.email` - устанавливает email для всех коммитов
-- `git config -e --global` - открывает глобальный конфиг для проверки
-
----
-
-### 5. Подключение к удаленному репозиторию
-
-```bash
-git remote add origin https://github.com/${GITHUB_USERNAME}/lab02.git
-git pull origin main
-```
-
-**Что делают эти команды:**
-- `git remote add origin` - связывает локальный репозиторий с удаленным на GitHub
-- `origin` - традиционное имя для основного удаленного репозитория
-- `git pull origin main` - скачивает изменения с GitHub (включая .gitignore)
-
-**Результат выполнения:**
-```
-remote: Enumerating objects: 7, done.
-remote: Counting objects: 100% (7/7), done.
-remote: Compressing objects: 100% (6/6), done.
-remote: Total 7 (delta 0), reused 0 (delta 0), pack-reused 0 (from 0)
-Unpacking objects: 100% (7/7), 2.47 KiB | 844.00 KiB/s, done.
-From https://github.com/ferdosiakrymskaa-svg/lab02
- * branch            main       -> FETCH_HEAD
- * [new branch]      main       -> origin/main
-```
-
----
-
-### 6. Работа с README.md
-
-```bash
-git branch -a
-touch README.md
-git status
-git add README.md
-git commit -m"added README.md"
-git push origin main
-```
-
-**Что делают эти команды:**
-- `git branch -a` - показывает все ветки (локальные и удаленные)
-- `touch README.md` - создает файл README.md
-- `git status` - показывает состояние рабочей директории
-- `git add README.md` - добавляет файл в staging area
-- `git commit -m"added README.md"` - создает коммит с сообщением
-- `git push origin main` - отправляет изменения на GitHub
-
-
-
----
-
-### 7. Создание структуры проекта
-
-```bash
-mkdir sources include examples
-```
-
-**Создание файла sources/print.cpp:**
-```bash
-cat > sources/print.cpp <<EOF
-#include <print.hpp>
-
-void print(const std::string& text, std::ostream& out)
-{
-  out << text;
-}
-
-void print(const std::string& text, std::ofstream& out)
-{
-  out << text;
-}
+cat >> CMakeLists.txt <<EOF
+include_directories(\${CMAKE_CURRENT_SOURCE_DIR}/include)
 EOF
 ```
 
-**Создание файла include/print.hpp:**
-```bash
-cat > include/print.hpp <<EOF
-#include <fstream>
-#include <iostream>
-#include <string>
+Постепенно создал файл CMakeLists.txt. Сначала указал минимальную версию CMake и название проекта. Затем задал стандарт C++11. После добавил инструкцию для создания статической библиотеки из исходного файла print.cpp. В конце указал директорию с заголовочными файлами.
 
-void print(const std::string& text, std::ofstream& out);
-void print(const std::string& text, std::ostream& out = std::cout);
+### 7. Сборка через CMake
+
+```bash
+cmake -H. -B_build
+```
+
+Запустил конфигурацию проекта. Ключ -H. указывает, где находится CMakeLists.txt, а -B_build задает директорию для сборки.
+
+```bash
+cmake --build _build
+```
+
+Запустил сборку. CMake сгенерировал Makefile и скомпилировал библиотеку.
+
+### 8. Добавление исполняемых файлов в CMake
+
+```bash
+cat >> CMakeLists.txt <<EOF
+
+add_executable(example1 \${CMAKE_CURRENT_SOURCE_DIR}/examples/example1.cpp)
+add_executable(example2 \${CMAKE_CURRENT_SOURCE_DIR}/examples/example2.cpp)
+EOF
+
+cat >> CMakeLists.txt <<EOF
+
+target_link_libraries(example1 print)
+target_link_libraries(example2 print)
 EOF
 ```
 
-**Создание файла examples/example1.cpp:**
-```bash
-cat > examples/example1.cpp <<EOF
-#include <print.hpp>
+Добавил в CMakeLists.txt инструкции для создания исполняемых файлов example1 и example2, а также указал, что они должны линковаться с библиотекой print.
 
-int main(int argc, char** argv)
-{
-  print("hello");
-}
-EOF
+```bash
+cmake --build _build
 ```
 
-**Создание файла examples/example2.cpp:**
+Пересобрал проект с обновленным CMakeLists.txt.
+
 ```bash
-cat > examples/example2.cpp <<EOF
-#include <print.hpp>
-
-#include <fstream>
-
-int main(int argc, char** argv)
-{
-  std::ofstream file("log.txt");
-  print(std::string("hello"), file);
-}
-EOF
+cmake --build _build --target print
+cmake --build _build --target example1
+cmake --build _build --target example2
 ```
 
-**Что делают эти команды:**
-- `mkdir` - создает директории для исходного кода, заголовочных файлов и примеров
-- `cat > файл <<EOF` - создает файл с многострочным содержимым
-- `#include` - подключает заголовочные файлы
-- `void print(...)` - объявление и определение функций
+Собрал отдельно библиотеку и каждый из примеров.
+
+### 9. Проверка
+
+```bash
+ls -la _build/libprint.a
+_build/example1 && echo
+_build/example2
+cat log.txt && echo
+rm -rf log.txt
+```
+
+Проверил, что библиотека создалась, запустил примеры и убедился, что они работают.
+
+### 10. Использование готового CMakeLists.txt
+
+```bash
+git clone https://github.com/tp-labs/lab03 tmp
+mv -f tmp/CMakeLists.txt .
+rm -rf tmp
+```
+
+Склонировал репозиторий с готовым CMakeLists.txt, заменил свой файл и удалил временную папку.
+
+### 11. Установка проекта
+
+```bash
+cmake -H. -B_build -DCMAKE_INSTALL_PREFIX=_install
+cmake --build _build --target install
+tree _install
+```
+
+Собрал проект с указанием директории для установки. После сборки выполнил установку. Команда tree показала структуру установленных файлов.
+
+### 12. Сохранение в Git
+
+```bash
+git add CMakeLists.txt
+git commit -m "added CMakeLists.txt"
+git push origin master
+```
+
+Добавил файл CMakeLists.txt в Git, закоммитил и отправил на GitHub.
 
 ---
 
-### 8. Проверка состояния и отправка изменений
+## Домашнее задание
+
+### Задание 1. Создание formatter_lib
+
+В папке formatter_lib я создал файл CMakeLists.txt. В нем я указал минимальную версию CMake, название проекта, установил стандарт C++11 и добавил инструкцию для создания статической библиотеки из файла formatter.cpp. Также добавил путь к заголовочным файлам.
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(formatter_lib)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_library(formatter STATIC formatter.cpp)
+
+target_include_directories(formatter PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+```
+
+### Задание 2. Создание formatter_ex
+
+В папке formatter_ex я создал CMakeLists.txt для библиотеки-расширения. Здесь нужно было подключить библиотеку formatter, поэтому я использовал target_link_libraries. Заголовки formatter нужны только при компиляции этой библиотеки, поэтому я указал PRIVATE.
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(formatter_ex)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_library(formatter_ex STATIC formatter_ex.cpp)
+
+target_include_directories(formatter_ex PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(formatter_ex PRIVATE ../formatter_lib)
+
+target_link_libraries(formatter_ex formatter)
+```
+
+### Задание 3. Создание приложений
+
+#### Приложение hello_world
+
+Создал CMakeLists.txt в папке hello_world. Здесь нужно было создать исполняемый файл и подключить библиотеки formatter_ex и formatter. Также добавил пути к заголовкам обеих библиотек.
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(hello_world)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(hello_world hello_world.cpp)
+
+target_include_directories(hello_world PRIVATE 
+    ../formatter_lib
+    ../formatter_ex
+)
+
+target_link_libraries(hello_world formatter_ex formatter)
+```
+
+#### Библиотека solver_lib
+
+Создал CMakeLists.txt в папке solver_lib. Здесь просто создается статическая библиотека из solver.cpp.
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(solver_lib)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_library(solver STATIC solver.cpp)
+
+target_include_directories(solver PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+```
+
+#### Приложение solver
+
+Создал CMakeLists.txt в папке solver. Здесь нужно было подключить три библиотеки: solver, formatter_ex и formatter. Я назвал исполняемый файл solver_app, чтобы не было конфликта имен с библиотекой solver.
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(solver_app)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_executable(solver_app equation.cpp)
+
+target_include_directories(solver_app PRIVATE 
+    ../solver_lib
+    ../formatter_lib
+    ../formatter_ex
+)
+
+target_link_libraries(solver_app solver formatter_ex formatter)
+```
+
+#### Главный CMakeLists.txt
+
+В корневой папке homework создал главный CMakeLists.txt, который подключает все поддиректории.
+
+```cmake
+cmake_minimum_required(VERSION 3.10)
+project(FormatterProject)
+
+set(CMAKE_CXX_STANDARD 11)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+add_subdirectory(formatter_lib)
+add_subdirectory(formatter_ex)
+add_subdirectory(solver_lib)
+add_subdirectory(hello_world)
+add_subdirectory(solver)
+```
+
+### Сборка и проверка
 
 ```bash
-git status
+cd /home/ilyasov_ilya/ferdosiakrymskaa-svg/workspace/projects/lab03/homework
+rm -rf build
+mkdir build && cd build
+cmake ..
+make
+```
+
+Сначала я удалил старую папку build, если она была. Затем создал новую, перешел в нее и запустил конфигурацию CMake. После успешной конфигурации выполнил сборку командой make.
+
+**Результат сборки:**
+```
+[ 20%] Built target formatter
+[ 40%] Built target formatter_ex
+[ 60%] Built target solver
+[ 80%] Built target hello_world
+[100%] Built target solver_app
+```
+
+```bash
+./hello_world/hello_world
+```
+
+**Вывод:**
+```
+-------------------------
+hello, world!
+-------------------------
+```
+
+```bash
+echo "1 -3 2" | ./solver/solver_app
+```
+
+**Вывод:**
+```
+-------------------------
+x1 = 1.000000
+-------------------------
+-------------------------
+x2 = 2.000000
+-------------------------
+```
+
+### Отправка на GitHub
+
+```bash
+cd /home/ilyasov_ilya/ferdosiakrymskaa-svg/workspace/projects/lab03/homework
 git add .
-git commit -m"added sources"
+git commit -m "add CMakeLists.txt for all components"
 git push origin main
 ```
 
-**Результат `git status`:**
-```
-On branch main
-Changes not staged for commit:
-  modified:   README.md
-Untracked files:
-  examples/
-  include/
-  sources/
-```
+Добавил все новые файлы в Git, создал коммит и отправил изменения на GitHub.
 
-**Результат `git push`:**
-```
-Enumerating objects: 12, done.
-Counting objects: 100% (12/12), done.
-Delta compression using up to 3 threads
-Compressing objects: 100% (8/8), done.
-Writing objects: 100% (10/10), 1.04 KiB | 1.04 MiB/s, done.
-Total 10 (delta 0), reused 0 (delta 0), pack-reused 0
-To https://github.com/ferdosiakrymskaa-svg/lab02.git
-   4a006c5..96893da  main -> main
-```
+## Выводы
 
-**Что делают эти команды:**
-- `git add .` - добавляет все изменения (новые и измененные файлы) в staging area
-- `git commit -m"added sources"` - создает коммит с исходным кодом
-- `git push` - отправляет все коммиты на GitHub
+В ходе выполнения лабораторной работы я научился:
 
----
+1. Собирать статические библиотеки вручную с помощью g++ и ar
+2. Создавать CMakeLists.txt для статических библиотек
+3. Указывать зависимости между библиотеками с помощью target_link_libraries
+4. Понимать разницу между PUBLIC и PRIVATE при добавлении директорий с заголовками
+5. Собирать проекты с помощью CMake (команды cmake и make)
+6. Устанавливать проект с помощью CMAKE_INSTALL_PREFIX
+7. Использовать Git для сохранения изменений
 
-### 9. Создание отчета
-
-```bash
-cd ~/workspace/
-export LAB_NUMBER=02
-git clone https://github.com/tp-labs/lab${LAB_NUMBER}.git tasks/lab${LAB_NUMBER}
-mkdir reports/lab${LAB_NUMBER}
-cp tasks/lab${LAB_NUMBER}/README.md reports/lab${LAB_NUMBER}/REPORT.md
-cd reports/lab${LAB_NUMBER}
-edit REPORT.md
-```
-
-**Что делают эти команды:**
-- `cd ~/workspace/` - переходит в рабочую директорию
-- `export LAB_NUMBER=02` - устанавливает номер лабораторной работы
-- `git clone` - клонирует шаблон отчета
-- `mkdir` - создает директорию для отчета
-- `cp` - копирует шаблон в директорию отчета
-- `edit REPORT.md` - открывает отчет для редактирования
-
----
-
-
-
-# Homework
-[Репозиторий Homework_lab02](https://github.com/ferdosiakrymskaa-svg/Homework_lab02.git)
-
-
-## Часть 1
-#### I Создайте пустой репозиторий на сервисе github.com (или gitlab.com, или bitbucket.com).
-Создали пустой репозиторий на сайте `github.com`.
-
-
-#### II Выполните инструкцию по созданию первого коммита на странице репозитория, созданного на предыдещем шаге.
-Выполнили инструкцию по созданию первого коммита на странице репозитория, созданного на предыдущем шаге.
-
-
-#### III Создайте файл `hello_world.cpp` в локальной копии репозитория (который должен был появиться на шаге. Реализуйте программу `Hello world` на языке C++ используя плохой стиль кода. Например, после заголовочных файлов вставьте строку `using namespace std;`.
-Создали файл `hello_world.cpp` в локальной копии репозитория с помощью команды: 
-```sh
-touch hello_world.cpp
-```
-Далее реализовали программу `Hello world` на языке C++ используя плохой стиль кода, в окне редактора `nano`:
-```sh
-nano hello_world.cpp
-```
-Код программы:
-```sh
-#include <iostream>
-using namespace std;
-
-int main() {
-    cout << "Hello world" << endl;
-    return 0;
-}
-```
-
-
-#### IV Добавьте этот файл в локальную копию репозитория.
-Добавили файл `hello_world.cpp` в локальную копию репозитория в помощью с помощью команды:
-```sh
-git add hello_world.cpp
-```
-
-
-#### V Закоммитьте изменения с осмысленным сообщением.
-Закоммитили изменения с осмысленным сообщением с помощью команды:
-```sh
-git commit -am "Добалили файл hello_world.cpp с использованием `using namespace std`"
-```
-Параметр `-a` делает все добавленные и измененые файлы отслеживаемыми, поэтому в процессе коммитов далее не понадобится вводить команду `git add hello_world.cpp`.
-
-
-#### VI Изменитьте исходный код так, чтобы программа через стандартный поток ввода запрашивалось имя пользователя. А в стандартный поток вывода печаталось сообщение Hello world from @name, где @name имя пользователя.
-Изменили исходный, чтобы через стандартный поток ввода запрашивалось имя пользователя, а в стандартный поток вывода печаталось сообщениесообщение Hello world from @name, где @name имя пользователя:
-Код после изменений в редакторе `nano`, который можно открыть для редакции данного файла с помощью команды `nano hello_world.cpp`:
-```sh
-#include <iostream>
-#include <string>
-using namespace std;
-
-int main()
-{
-    string name;
-    cout << "Input your name: ";
-    cin >> name;
-    cout << "Hello world from "<<name << endl;
-    return 0;
-}
-
-```
-
-
-#### VII Закоммитьте новую версию программы. Почему не надо добавлять файл повторно git add?
-Закоммитили новую версию программы с помощью команды:
-```sh
-git commit -m "Добавили ввод в имени пользователя через стандартный поток ввода"
-```
-`git add` не нужно добавлять повторно, так как мы ранее прорисали в первом коммите параметр `-a` который сделал файл отслеживаемым.
-Результат работы программы `git log`:
-```sh
-commit 19c36a595c3de431132ff42878aa791e2e4ea7f2 (HEAD -> main)
-Author: ferdosiakrymskaa-svg <ferdosiakrymskaa@gmail.com>
-Date:   Sat Mar 21 19:23:55 2026 +0000
-
-    Добалили файл hello_world.cpp с использованием
-
-commit 781a476048b439ec099454889094b1020309bac2 (origin/main)
-Author: ferdosiakrymskaa-svg <ferdosiakrymskaa@gmail.com>
-Date:   Wed Mar 18 14:34:40 2026 +0000
-```
----
-
-#### VIII Запуште изменения в удалёный репозиторий.
-Пушим изменения в удаленный репозиторий с помощью команды:
-```sh
-git push origin main
-```
-Результат работы программы:
-```sh
-Username for 'https://github.com': ferdosiakrymskaa-svg
-Password for 'https://ferdosiakrymskaa-svg@github.com': 
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 3 threads
-Compressing objects: 100% (2/2), done.
-Writing objects: 100% (3/3), 478 bytes | 478.00 KiB/s, done.
-Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
-To https://github.com/ferdosiakrymskaa-svg/Homework_lab02.git
-   781a476..52e5061  main -> main
-```
-
-
-#### IX Проверьте, что история коммитов доступна в удалёный репозитории.
-Из результата работы программы в прошлом пункте видно, что все коммиты были внесены в удаленный репозиторий из локального.
-
-
-## Часть 2
-
-#### I В локальной копии репозитория создайте локальную ветку `patch1`.
-Создали в локальной копии репозитория локальную ветку `patch1` с помощью команды:
-```sh
-git branch patch1
-```
-#### II Внесите изменения в ветке `patch1` по исправлению кода и избавления от `using namespace std;`.
-Переключаемся на ветку `patch1` с помощью команды `git checkout patch1`.
-Редактируем с помощью редактора `nano` с помощью команды `nano hello_world.cpp`. Данный файл после редактирования:
-```sh
-#include <iostream>
-#include <string>
-
-
-int main()
-{
-    std::string name;
-    std::cout << "Input your name: ";
-    std::cin >> name;
-    std::cout << "Hello world from "<<name << std::endl;
-    return 0;
-}
-```
-
-#### III `commit`, `push` локальную ветку в удалённый репозиторий.
-Сделали коммит и пуш локальной ветки в удаленный рпозиторий с помощью команд:
-```sh
-git commit -am "Избавились от using namespace std"
-git push -u origin patch1
-```
-Параметр `-u` позволяет единожды прописать `git push -u origin patch1` далее можно будет прописывать только `git push`.
-
-#### IV Проверьте, что ветка `patch1` доступна в удалёный репозитории.
-Проверили, что ветка `patch1` доступна в удаленный репозиторий тем, что вывело в терминал при вводе придыдущих команд:
-```sh
-numerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 3 threads
-Compressing objects: 100% (2/2), done.
-Writing objects: 100% (3/3), 422 bytes | 422.00 KiB/s, done.
-Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
-remote: 
-remote: Create a pull request for 'patch1' on GitHub by visiting:
-remote:      https://github.com/ferdosiakrymskaa-svg/Homework_lab02/pull/new/patch1
-remote: 
-To https://github.com/ferdosiakrymskaa-svg/Homework_lab02.git
- * [new branch]      patch1 -> patch1
-branch 'patch1' set up to track 'origin/patch1'.
-```
-#### V Создайте  `pull-request` `patch1 -> master`.
-Создали `pull-request` ветки `patch1 -> master` в терминале с помощью следующих команд:
-```sh
-gh auth login
-```
-Данная команда позволяет пройти аунтефикацию в терминале(процесс аунтефикации):
-```sh
- What account do you want to log into? GitHub.com
-? What is your preferred protocol for Git operations on this host? HTTPS
-? Authenticate Git with your GitHub credentials? Yes
-? How would you like to authenticate GitHub CLI? Paste an authentication token
-Tip: you can generate a Personal Access Token here https://github.com/settings/tokens
-The minimum required scopes are 'repo', 'read:org', 'workflow'.
-? Paste your authentication token: ****************************************
-- gh config set -h github.com git_protocol https
-✓ Configured git protocol
-✓ Logged in as ferdosiakrymskaa-svg
-```
-С помощью следующей команды выполняем непосредственно `pull-request`:
-```sh
-gh pr create --base main
-```
-`gh` означает GitHub, `pr` -  `pull-request`, `base` показывает, в какую ветку мы хотим влить данные из выбранной.
-Результат работы программы:
-```sh
-Warning: 1 uncommitted change
-
-Creating pull request for patch1 into main in ferdosiakrymskaa-svg/Homework_lab02
-
-? Title Избавились от using namespace std
-? Body <Received>
-? What's next? Submit
-https://github.com/ferdosiakrymskaa-svg/Homework_lab02/pull/1
-```
-#### VI В локальной копии в ветке `patch1` добавьте в исходный код комментарии.
-Добавили комметарии в исходный код с помощью редактора `nano`. Новый код с комментариями:
-```sh
-#include <iostream>//Библиотека для ввода\вывода
-#include <string>//Библиотека для работы со строками
-
-
-int main()
-{
-    std::string name;//Переменная, хранящая имя пользователя
-    std::cout << "Input your name: ";//Печатает комментарий, который говорит, что пользователю необходимо ввести
-    std::cin >> name;//Ввод имени пользователя
-    std::cout << "Hello world from "<<name << std::endl;//Вывод программы
-    return 0;
-}
-```
-#### VII **commit**, **push**.
-Выполнили коммит и пуш в удаленный репозиторий:
-```sh
-git commit -am "Добавили комментарии в код"
-git push
-```
-Результат работы команд:
-```sh
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 3 threads
-Compressing objects: 100% (2/2), done.
-Writing objects: 100% (3/3), 636 bytes | 636.00 KiB/s, done.
-Total 3 (delta 0), reused 0 (delta 0), pack-reused 0
-To https://github.com/ferdosiakrymskaa-svg/Homework_lab02.git
-   77bb14d..717e553  patch1 -> patch1
-```
-#### VIII Проверьте, что новые изменения есть в созданном на **шаге 5** pull-request
-Да, действительно, новые изменения есть в `pull-request`.
-
-#### IX В удалённый репозитории выполните  слияние PR `patch1 -> master` и удалите ветку `patch1` в удаленном репозитории.
-Выполнили указанные действия на странице GitHub.
-#### X Локально выполните **pull**.
-```sh
-git pull
-```
-Результат работы команды(`pull` для ветки `main`):
-```sh
-Updating 52e5061..ca6d371
-Fast-forward
- hello_world.cpp | 14 +++++++-------
- 1 file changed, 7 insertions(+), 7 deletions(-)
-```
-#### XI С помощью команды **git log** просмотрите историю в локальной версии ветки `master`.
-Результат работы команды:
-```sh
-commit ca6d3715e849b54f1c3e06fda093568f3a91b5af (HEAD -> main, origin/main)
-Merge: 52e5061 717e553
-Author: Ilyasov_Ilya <ferdosiakrymskaa@gmail.com>
-Date:   Sat Mar 21 20:59:17 2026 +0000
-
-    Merge pull request #1 from ferdosiakrymskaa-svg/patch1
-    
-    Избавились от using namespace std
-
-commit 717e5539c5022dcb64f884d07c79719878fdf535 (origin/patch1, patch1)
-Author: ferdosiakrymskaa-svg <ferdosiakrymskaa@gmail.com>
-Date:   Sat Mar 21 20:41:53 2026 +0000
-
-    Добавили комментарии в код
-
-commit 77bb14d06541ea284f758427148ef59a82fedf15
-Author: ferdosiakrymskaa-svg <ferdosiakrymskaa@gmail.com>
-Date:   Sat Mar 21 19:59:10 2026 +0000
-
-    Избавились от using namespace std
-
-commit 52e506115a26250f3f85057b5403d39c22680fbb
-Author: ferdosiakrymskaa-svg <ferdosiakrymskaa@gmail.com>
-Date:   Sat Mar 21 19:23:55 2026 +0000
-
-    Добавили ввод в имени пользователя через стандартный поток ввода
-```
-#### XII Удалите локальную ветку `patch1`.
-Удаляем ветку `patch1` с помощью данной команды(параметр `-d` - delete):
-```sh
-git branch -d patch1
-```
-Результат работы программы:
-```sh
-Deleted branch patch1 (was 717e553).
-```
-
-# Часть 3
-
-#### I Создайте новую локальную ветку `patch2`.
-Создали ветку и сразу выбрали ее с помощью команды:
-```sh
-git checkout -b patch2
-```
-#### II Измените *code style* с помощью утилиты [**clang-format**](http://clang.llvm.org/docs/ClangFormat.html). Например, используя опцию `-style=Mozilla`.
-Изменили формат файла `hello_world.cpp` на `Mozilla` с помощью команды(параметр `-i` позволяет изменить именно стиль файла, а не просто вывести в терминал в формате `Mozilla`):
-```sh
-clang-format -style=Mozilla -i hello_world.cpp
-```
-#### III **commit**, **push**, создайте pull-request `patch2 -> master`.
-Выполнили коммит и запушили изменения с помощью следующих команд:
-```sh
-git commit -am "Изменили стиль на Mozzila"
-git push -u origin patch2
-```
-Результат работы команд:
-```sh
-[patch2 48cdb47] Изменили стиль на Mozzila
- 1 file changed, 10 insertions(+), 9 deletions(-)
-
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 3 threads
-Compressing objects: 100% (2/2), done.
-Writing objects: 100% (3/3), 471 bytes | 235.00 KiB/s, done.
-Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (1/1), completed with 1 local object.
-remote: 
-remote: Create a pull request for 'patch2' on GitHub by visiting:
-remote:      https://github.com/ferdosiakrymskaa-svg/Homework_lab02/pull/new/patch2
-remote: 
-To https://github.com/ferdosiakrymskaa-svg/Homework_lab02.git
- * [new branch]      patch2 -> patch2
-branch 'patch2' set up to track 'origin/patch2'.
-
-```
-#### IV В ветке **master** в удаленном репозитории измените комментарии, например, расставьте знаки препинания, переведите комментарии на другой язык.
-В ветке main в удаленном репозитории изменил комментарии(стало):
-```sh
-#include <iostream>//Библиотека для ввода\вывода
-#include <string>//Библиотека для работы со строками
-
-
-int main()
-{
-    std::string name;//Переменная, хранящая имя пользователя(value, which save user name)
-    std::cout << "Input your name: ";//Печатает комментарий, который говорит, что пользователю необходимо ввести
-    std::cin >> name;//Ввод имени пользователя
-    std::cout << "Hello world from "<<name << std::endl;//Вывод программы
-    return 0;
-}
-```
-#### V Убедитесь, что в pull-request появились *конфликтны*.
-Действительно появились конфликты.
-#### VI Для этого локально выполните **pull** + **rebase** (точную последовательность команд, следует узнать самостоятельно). **Исправьте конфликты**.
-Для начала синхронизуем все ветки  локального репозитория с удаленным с помощью команды:
-```sh
-git fetch origin
-```
-Далее вводим команды для `rebase`, но получаем сообщение о конфликте:
-```sh
-Auto-merging hello_world.cpp
-CONFLICT (content): Merge conflict in hello_world.cpp
-error: could not apply 48cdb47... Изменили стиль на Mozzila
-hint: Resolve all conflicts manually, mark them as resolved with
-hint: "git add/rm <conflicted_files>", then run "git rebase --continue".
-hint: You can instead skip this commit: run "git rebase --skip".
-hint: To abort and get back to the state before "git rebase", run "git rebase --abort".
-Could not apply 48cdb47... Изменили стиль на Mozzila
-```
-Редактируем файл редактором `nano` и получаем в итоге:
-```sh
-#include <iostream> //Библиотека для ввода\вывода
-#include <string> //Библиотека для работы со строками
-
-int
-main()
-{
-
-  
-  std::string name; // Переменная, хранящая имя пользователя(value, which save user name)
-  std::cout << "Input your name: "; // Печатает комментарий, который говорит,
-                                    // что пользователю необходимо ввести
-  std::cin >> name; // Ввод имени пользователя
-  std::cout << "Hello world from " << name << std::endl; // Вывод программы
-  return 0;
-
-}
-```
-Теперь добавляем файл командой `git add hello_world.cpp`. Далее выполняем `git rebase --continue`
-Результат работы программы:
-```sh
-[detached HEAD 4ad1a0b] Изменили стиль на Mozzila
- 1 file changed, 13 insertions(+), 9 deletions(-)
-Successfully rebased and updated refs/heads/patch2.
-```
-#### VII Сделайте *force push* в ветку `patch2`
-Выполняем команду `git push --force-with-lease origin patch2`.
-Результат работы команды:
-```sh
-Enumerating objects: 5, done.
-Counting objects: 100% (5/5), done.
-Delta compression using up to 3 threads
-Compressing objects: 100% (2/2), done.
-Writing objects: 100% (3/3), 479 bytes | 479.00 KiB/s, done.
-Total 3 (delta 1), reused 0 (delta 0), pack-reused 0
-remote: Resolving deltas: 100% (1/1), completed with 1 local object.
-To https://github.com/ferdosiakrymskaa-svg/Homework_lab02.git
- + 48cdb47...4ad1a0b patch2 -> patch2 (forced update)
-```
-#### VIII Убедитель, что в pull-request пропали конфликтны. 
-Конфликты действительно пропали.
-#### IX Вмержите pull-request `patch2 -> master`.
-Мержим командой `gh pr merge --merge`.
-Результат работы команды:
-```sh
-✓ Merged pull request #2 (Изменили стиль на Mozzila)
-```
-
-## Вывод о проделанной работе
-
-В ходе выполнения данного практического задания были освоены основные принципы работы с системой контроля версий Git и платформой GitHub.
-
-**На первом этапе** был создан репозиторий, выполнена базовая настройка и произведены первые коммиты. Было наглядно продемонстрировано различие между добавлением новых файлов через `git add` и коммитом изменений в уже отслеживаемых файлах с помощью флага `-am`.
-
-**Второй этап** позволил изучить механизм ветвления в Git. Была создана отдельная ветка для внесения изменений, выполнена работа в ней, а затем создан pull-реквест для предложения этих изменений в основную ветку. Важным моментом стало понимание того, как дополнительные коммиты автоматически добавляются в уже существующий pull-реквест, а также процесс удаления веток как в локальном, так и в удаленном репозитории после успешного слияния.
-
-**Третий этап** был наиболее сложным и полезным. Была смоделирована ситуация возникновения конфликта при слиянии, когда в разных ветках изменялись одни и те же строки кода. В процессе выполнения был освоен ключевой инструмент разрешения конфликтов — `git rebase`. Этот подход позволяет не просто устранить конфликт, но и переписать историю ветки таким образом, чтобы она начиналась от актуального состояния основной ветки, что делает историю проекта более линейной и чистой. Также был применен `git push --force-with-lease` для отправки изменений после перезаписи истории и финальное слияние pull-реквеста.
-
-В результате выполнения всех трех частей задания были получены практические навыки работы с Git и GitHub, включая создание коммитов, управление ветками, работу с pull-реквестами и разрешение конфликтов слияния. 
 
